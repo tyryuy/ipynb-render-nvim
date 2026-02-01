@@ -39,4 +39,5 @@ Save:
 
 ## Code Highlight
 Code cells use Vim's syntax files based on notebook metadata (`language_info.name` or `kernelspec.language`).
-If highlighting is missing, ensure `:syntax on` and that the language syntax file exists.
+The buffer syntax is set to that language, and markdown cells are masked to keep them unhighlighted.
+If highlighting is missing, ensure `:syntax enable` and that the language syntax file exists.

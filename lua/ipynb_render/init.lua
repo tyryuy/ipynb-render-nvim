@@ -144,32 +144,55 @@ local function refresh_decorations(buf)
   end
 end
 
-local function ensure_syntax(buf)
-  if M.syntax_initialized[buf] then
-    return
+local function resolve_lang(st)
+  if st.lang_resolved then
+    return st.lang_resolved
   end
+  local lang = st.lang or "python"
+  local function has_syntax(name)
+    return #vim.api.nvim_get_runtime_file("syntax/" .. name .. ".vim", false) > 0
+  end
+  local aliases = {
+    python3 = "python",
+    ipython = "python",
+    bash = "sh",
+    zsh = "sh",
+    shell = "sh",
+    cplusplus = "cpp",
+    ["c++"] = "cpp",
+  }
+  if aliases[lang] then
+    lang = aliases[lang]
+  end
+  if not has_syntax(lang) then
+    lang = "python"
+  end
+  st.lang_resolved = lang
+  return lang
+end
+
+local function apply_syntax(buf)
   local st = M.state[buf]
   if not st then
     return
   end
-  local lang = st.lang or "python"
-  vim.api.nvim_buf_call(buf, function()
-    vim.cmd("silent! syntax include @ipynb_code syntax/" .. lang .. ".vim")
-  end)
+  local lang = resolve_lang(st)
+  if not vim.g.syntax_on then
+    vim.cmd("syntax enable")
+  end
+  vim.bo[buf].syntax = lang
   M.syntax_initialized[buf] = true
 end
 
-local function clear_syntax_regions(buf)
+local function clear_markdown_masks(buf)
   local st = M.state[buf]
-  if not st or not st.syntax_regions then
+  if not st or not st.md_marks then
     return
   end
-  vim.api.nvim_buf_call(buf, function()
-    for _, name in ipairs(st.syntax_regions) do
-      vim.cmd("silent! syntax clear " .. name)
-    end
-  end)
-  st.syntax_regions = {}
+  for _, id in ipairs(st.md_marks) do
+    pcall(vim.api.nvim_buf_del_extmark, buf, M.ns, id)
+  end
+  st.md_marks = {}
 end
 
 local function refresh_syntax(buf)
@@ -177,34 +200,25 @@ local function refresh_syntax(buf)
   if not st then
     return
   end
-  ensure_syntax(buf)
-  clear_syntax_regions(buf)
+  apply_syntax(buf)
+  clear_markdown_masks(buf)
 
-  local regions = {}
-  vim.api.nvim_buf_call(buf, function()
-    for i, cell in ipairs(st.cells) do
-      if cell.cell.cell_type == "code" then
-        local start_row, end_row = get_range(buf, cell.range_id)
-        local start_line = start_row + 1
-        local end_line = end_row
-        if end_line >= start_line then
-          local name = "ipynbCodeCell" .. i
-          local start_pat = "\\%>" .. (start_line - 1) .. "l"
-          local end_pat = "\\%<" .. (end_line + 1) .. "l"
-          vim.cmd(
-            string.format(
-              "syntax region %s start=/%s/ end=/%s/ contains=@ipynb_code keepend",
-              name,
-              start_pat,
-              end_pat
-            )
-          )
-          table.insert(regions, name)
-        end
+  local marks = {}
+  for _, cell in ipairs(st.cells) do
+    if cell.cell.cell_type == "markdown" then
+      local start_row, end_row = get_range(buf, cell.range_id)
+      for row = start_row, math.max(start_row, end_row - 1) do
+        local id = vim.api.nvim_buf_set_extmark(buf, M.ns, row, 0, {
+          end_row = row + 1,
+          end_col = 0,
+          hl_group = "Normal",
+          priority = 200,
+        })
+        table.insert(marks, id)
       end
     end
-  end)
-  st.syntax_regions = regions
+  end
+  st.md_marks = marks
 end
 
 local function current_cell_index(buf)
@@ -325,10 +339,18 @@ function M.open_buffer(bufnr)
   elseif type(md.kernelspec) == "table" and md.kernelspec.language then
     lang = md.kernelspec.language
   end
+  if type(lang) == "string" then
+    lang = lang:lower()
+  end
 
-  M.state[bufnr] = { notebook = notebook, cells = cells, lang = lang, syntax_regions = {} }
+  M.state[bufnr] = { notebook = notebook, cells = cells, lang = lang, md_marks = {}, lang_resolved = nil }
   refresh_decorations(bufnr)
   refresh_syntax(bufnr)
+  vim.defer_fn(function()
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      refresh_syntax(bufnr)
+    end
+  end, 10)
 
   vim.api.nvim_create_autocmd("BufWriteCmd", {
     buffer = bufnr,
@@ -342,6 +364,18 @@ function M.open_buffer(bufnr)
     callback = function()
       refresh_decorations(bufnr)
       refresh_syntax(bufnr)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ "BufWinEnter", "Syntax" }, {
+    buffer = bufnr,
+    callback = function()
+      vim.defer_fn(function()
+        if vim.api.nvim_buf_is_valid(bufnr) then
+          apply_syntax(bufnr)
+          refresh_syntax(bufnr)
+        end
+      end, 5)
     end,
   })
 end
