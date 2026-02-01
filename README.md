@@ -1,8 +1,6 @@
-# ipynb-render.nvim 
+# ipynb-render.nvim
 
-- Render a .ipynb file into a readable scratch buffer in Neovim.
-- Currently, this plugin can only render jupyter notebook
-  -  Editing and executing cells will be implemented in the near future
+Editable .ipynb view in Neovim: open a notebook and edit only cell inputs in a single buffer.
 
 ## Requirements
 - Neovim
@@ -12,13 +10,12 @@
 ## Install (lazy.nvim)
 ```lua
 {
-  "tyryuy/ipynb-render.nvim",
-  cmd = { "IpynbRender" },
+  "tyryuy/ipynb-render-nvim",
+  ft = { "ipynb" },
   config = function()
     require("ipynb_render").setup({
       -- python_cmd = "python3",
-      -- split = "vsplit",
-      -- view_filetype = "markdown",
+      -- auto_open = true,
     })
   end,
 }
@@ -26,13 +23,16 @@
 
 ## Usage
 
-Open a .ipynb file and run:
+Open a `.ipynb` file and the buffer is transformed into an editable notebook view.
 
-```
-:IpynbRender
-```
+Commands:
+- `:IpynbOpen` open current `.ipynb` in notebook view
+- `:IpynbCellAddAbove`
+- `:IpynbCellAddBelow`
+- `:IpynbCellDelete`
+- `:IpynbCellMoveUp`
+- `:IpynbCellMoveDown`
+- `:IpynbCellToggleType`
 
-Navigation in the view buffer:
-
-- `]]` next cell
-- `[[` previous cell
+Save:
+- `:write` writes back to `.ipynb` while preserving notebook metadata.
