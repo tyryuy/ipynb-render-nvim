@@ -1,6 +1,9 @@
 # ipynb-render.nvim
 
-Editable .ipynb view in Neovim: open a notebook and edit only cell inputs in a single buffer.
+- Minimal features 
+  - Editable .ipynb view in Neovim: open a notebook and edit only cell inputs in a single buffer.
+- Usecase
+  - Edit notebooks in a local machine with this plugin and push them to a remote environment (ex) colab)
 
 ## Requirements
 - Neovim
