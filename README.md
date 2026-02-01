@@ -1,6 +1,8 @@
-# ipynb-render.nvim (MVP)
+# ipynb-render.nvim 
 
-Render a .ipynb file into a readable scratch buffer in Neovim.
+- Render a .ipynb file into a readable scratch buffer in Neovim.
+- Currently, this plugin can only render jupyter notebook
+  -  Editing and executing cells will be implemented in the near future
 
 ## Requirements
 - Neovim
@@ -10,7 +12,7 @@ Render a .ipynb file into a readable scratch buffer in Neovim.
 ## Install (lazy.nvim)
 ```lua
 {
-  "YOUR_GITHUB_NAME/ipynb-render.nvim",
+  "tyryuy/ipynb-render.nvim",
   cmd = { "IpynbRender" },
   config = function()
     require("ipynb_render").setup({
