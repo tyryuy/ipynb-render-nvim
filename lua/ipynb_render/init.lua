@@ -177,6 +177,9 @@ local function apply_syntax(buf)
     return
   end
   local lang = resolve_lang(st)
+  if vim.bo[buf].syntax == lang then
+    return
+  end
   if not vim.g.syntax_on then
     vim.cmd("syntax enable")
   end
