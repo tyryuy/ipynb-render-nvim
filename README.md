@@ -36,3 +36,7 @@ Commands:
 
 Save:
 - `:write` writes back to `.ipynb` while preserving notebook metadata.
+
+## Code Highlight
+Code cells use Vim's syntax files based on notebook metadata (`language_info.name` or `kernelspec.language`).
+If highlighting is missing, ensure `:syntax on` and that the language syntax file exists.

@@ -9,6 +9,7 @@ M.opts = {
 
 M.ns = vim.api.nvim_create_namespace("ipynb_render")
 M.state = {}
+M.syntax_initialized = {}
 
 function M.setup(opts)
   M.opts = vim.tbl_deep_extend("force", M.opts, opts or {})
@@ -143,6 +144,69 @@ local function refresh_decorations(buf)
   end
 end
 
+local function ensure_syntax(buf)
+  if M.syntax_initialized[buf] then
+    return
+  end
+  local st = M.state[buf]
+  if not st then
+    return
+  end
+  local lang = st.lang or "python"
+  vim.api.nvim_buf_call(buf, function()
+    vim.cmd("silent! syntax include @ipynb_code syntax/" .. lang .. ".vim")
+  end)
+  M.syntax_initialized[buf] = true
+end
+
+local function clear_syntax_regions(buf)
+  local st = M.state[buf]
+  if not st or not st.syntax_regions then
+    return
+  end
+  vim.api.nvim_buf_call(buf, function()
+    for _, name in ipairs(st.syntax_regions) do
+      vim.cmd("silent! syntax clear " .. name)
+    end
+  end)
+  st.syntax_regions = {}
+end
+
+local function refresh_syntax(buf)
+  local st = M.state[buf]
+  if not st then
+    return
+  end
+  ensure_syntax(buf)
+  clear_syntax_regions(buf)
+
+  local regions = {}
+  vim.api.nvim_buf_call(buf, function()
+    for i, cell in ipairs(st.cells) do
+      if cell.cell.cell_type == "code" then
+        local start_row, end_row = get_range(buf, cell.range_id)
+        local start_line = start_row + 1
+        local end_line = end_row
+        if end_line >= start_line then
+          local name = "ipynbCodeCell" .. i
+          local start_pat = "\\%>" .. (start_line - 1) .. "l"
+          local end_pat = "\\%<" .. (end_line + 1) .. "l"
+          vim.cmd(
+            string.format(
+              "syntax region %s start=/%s/ end=/%s/ contains=@ipynb_code keepend",
+              name,
+              start_pat,
+              end_pat
+            )
+          )
+          table.insert(regions, name)
+        end
+      end
+    end
+  end)
+  st.syntax_regions = regions
+end
+
 local function current_cell_index(buf)
   local st = M.state[buf]
   if not st then
@@ -254,8 +318,17 @@ function M.open_buffer(bufnr)
     })
   end
 
-  M.state[bufnr] = { notebook = notebook, cells = cells }
+  local lang = "python"
+  local md = notebook.metadata or {}
+  if type(md.language_info) == "table" and md.language_info.name then
+    lang = md.language_info.name
+  elseif type(md.kernelspec) == "table" and md.kernelspec.language then
+    lang = md.kernelspec.language
+  end
+
+  M.state[bufnr] = { notebook = notebook, cells = cells, lang = lang, syntax_regions = {} }
   refresh_decorations(bufnr)
+  refresh_syntax(bufnr)
 
   vim.api.nvim_create_autocmd("BufWriteCmd", {
     buffer = bufnr,
@@ -268,6 +341,7 @@ function M.open_buffer(bufnr)
     buffer = bufnr,
     callback = function()
       refresh_decorations(bufnr)
+      refresh_syntax(bufnr)
     end,
   })
 end
@@ -342,6 +416,7 @@ function M.cell_add(where)
   end
 
   refresh_decorations(buf)
+  refresh_syntax(buf)
 end
 
 function M.cell_delete()
@@ -365,6 +440,7 @@ function M.cell_delete()
   table.remove(st.cells, idx)
 
   refresh_decorations(buf)
+  refresh_syntax(buf)
 end
 
 function M.cell_move(delta)
@@ -401,6 +477,7 @@ function M.cell_move(delta)
   table.insert(st.cells, new_idx, cell)
 
   refresh_decorations(buf)
+  refresh_syntax(buf)
 end
 
 function M.cell_toggle_type()
@@ -426,6 +503,7 @@ function M.cell_toggle_type()
   end
 
   refresh_decorations(buf)
+  refresh_syntax(buf)
 end
 
 return M
